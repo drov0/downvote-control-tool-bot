@@ -104,19 +104,38 @@ function vote_err_handled(username, wif, author, permlink, percentage)
 
         if (result !== "") {
             for (let k = 0; k < 10; k++) {
-                console.error("vote failed for " + username + " voting on "+author+"/"+permlink);
+                console.error("vote failed for " + username + " voting on " + author + "/" + permlink);
                 result = await vote(username, wif, author, permlink, percentage);
-                if (result === "")
+                if (result === "") {
+                    console.log(`${username} downvoted @${author}/${permlink} with a ${percentage / 100}% vote`)
                     return resolve("");
+                }
             }
-        } else
-            return resolve("");
+        }
 
-        return resolve(result);
-    });
+        console.log(`${username} downvoted @${author}/${permlink} with a ${percentage/100}% vote`)
+        return resolve("");
+
+            });
 }
 
+function has_already_beed_voted(voter, author, permlink) {
 
+    return new Promise(async resolve => {
+
+        const post = await client.database.call("get_content", [author, permlink]);
+
+        if (post.active_votes.filter(el => el.voter === voter).length !== 0)
+        {
+            return resolve(true)
+        } else
+        {
+            return resolve(false)
+        }
+
+
+    });
+}
 
 function stream() {
     steem.api.setOptions({
@@ -148,7 +167,12 @@ function stream() {
 
                         if (user.threshold < user_vp.downvoting_power) {
 
-                            weight = affected_trails[i].ratio * weight;
+                            if ((await has_already_beed_voted(affected_trails[i].username, author, permlink)) === true)
+                            {
+                                continue;
+                            }
+
+                            weight = Math.ceil(affected_trails[i].ratio * weight);
 
                             // make sure that the weight isn't over 100% both ways
                             weight = weight > 10000 ? 10000 : weight;
