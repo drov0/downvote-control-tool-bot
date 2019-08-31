@@ -33,3 +33,13 @@ Or if you have pm2 installed
 > pm2 downvote-bot.js --name bot
 
 pm2 is cleaner, I suggest you go that route
+
+# This is part of a stack 
+
+This should be used along with the front end :
+
+https://github.com/drov0/downvote-control-tools-front
+
+And the back end :
+
+https://github.com/drov0/downvote-control-tool-back
