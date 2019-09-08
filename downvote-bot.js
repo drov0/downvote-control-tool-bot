@@ -207,6 +207,7 @@ function stream() {
 
 async function run()
 {
+    console.log("Starting...");
     await get_trails();
 
     stream()
