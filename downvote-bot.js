@@ -119,22 +119,15 @@ function vote_err_handled(username, wif, author, permlink, percentage)
             });
 }
 
-function has_already_beed_voted(voter, author, permlink) {
-
-    return new Promise(async resolve => {
-
-        const post = await client.database.call("get_content", [author, permlink]);
+function has_already_beed_voted(voter, post) {
 
         if (post.active_votes.filter(el => el.voter === voter).length !== 0)
         {
-            return resolve(true)
+            return true
         } else
         {
-            return resolve(false)
+            return false
         }
-
-
-    });
 }
 
 function stream() {
@@ -167,10 +160,17 @@ function stream() {
 
                         if (user.threshold < user_vp.downvoting_power) {
 
-                            if ((await has_already_beed_voted(affected_trails[i].username, author, permlink)) === true)
-                            {
+                            const post = await client.database.call("get_content", [author, permlink]);
+
+                            if (has_already_beed_voted(affected_trails[i].username, post) === true)
                                 continue;
-                            }
+
+                            if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout)
+                                continue;
+
+                            // This posts accepts reward
+                            if (parseFloat(post.max_accepted_payout) === 0)
+                                continue;
 
                             weight = Math.ceil(affected_trails[i].ratio * weight);
 
@@ -208,6 +208,7 @@ function stream() {
 async function run()
 {
     await get_trails();
+
     stream()
     // Update trail data every minute
     while (true)
