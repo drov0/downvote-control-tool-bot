@@ -12,8 +12,12 @@ let users = [];
 
 async function get_trails()
 {
-    trails = await db("SELECT username, trailed, ratio, negative FROM trail");
+    trails = await db("SELECT username, trailed, ratio, type FROM trail");
+    let whitelists = await db("SELECT username, trailed FROM whitelist");
     users = await db("SELECT * from user_data");
+
+    for (let i = 0; i < users.length; i++)
+        users[i].whitelist = whitelists.filter(el => el.username === users[i].username).map(el => el.trailed);
 }
 
 function get_voting_power(usernames) {
@@ -113,7 +117,11 @@ function vote_err_handled(username, wif, author, permlink, percentage)
             }
         }
 
-        console.log(`${username} downvoted @${author}/${permlink} with a ${percentage/100}% vote`)
+        if (percentage > 0)
+            console.log(`${username} upvoted @${author}/${permlink} with a ${percentage/100}% vote`);
+        else
+            console.log(`${username} downvoted @${author}/${permlink} with a ${percentage/100}% vote`);
+
         return resolve("");
 
             });
@@ -165,30 +173,45 @@ function stream() {
                             if (has_already_beed_voted(affected_trails[i].username, post) === true)
                                 continue;
 
-                            if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout)
-                                continue;
+                            // These checks only make sense if we are downvoting
+                            if (affected_trails[i].type === 1 || affected_trails[i].type === -1) {
+                                if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout)
+                                    continue;
 
-                            // This posts accepts reward
-                            if (parseFloat(post.max_accepted_payout) === 0)
-                                continue;
-
+                                // This posts accepts reward
+                                if (parseFloat(post.max_accepted_payout) === 0)
+                                    continue;
+                            }
                             weight = Math.ceil(affected_trails[i].ratio * weight);
 
                             // make sure that the weight isn't over 100% both ways
                             weight = weight > 10000 ? 10000 : weight;
                             weight = weight < -10000 ? -10000 : weight;
 
-                            if (affected_trails[i].negative === -1) {
+                            if (affected_trails[i].type === -1) {
                                 // if weight is inferior to 0 it means it's a downvote and we don't trail those
-                                if (weight < 0)
+                                if (weight <= 0)
+                                    continue;
+                                if (user.whitelist.indexOf(author) !== -1)
                                     continue;
 
                                 // if the trail is negative, change the upvote to a downvote
                                 weight *= -1;
-                            } else {
-                                // if weight is superior to  0 it means it's an upvote and we don't trail those
-                                if (weight > 0)
+                            } else if (affected_trails[i].type === 1) {
+
+                                if (user.whitelist.indexOf(author) !== -1)
                                     continue;
+
+                                // if weight is superior to  0 it means it's an upvote and we don't trail those
+                                if (weight >= 0)
+                                    continue;
+                            } else if (affected_trails[i].type === 2) {
+                                // if weight is superior to  0 it means it's an upvote and we don't trail those
+                                if (weight >= 0)
+                                    continue;
+
+                                // Change the downvote to an upvote
+                                weight *= -1;
                             }
 
                             vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, weight)
