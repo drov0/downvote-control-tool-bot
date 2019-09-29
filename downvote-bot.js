@@ -181,6 +181,24 @@ function stream() {
                                 // This posts accepts reward
                                 if (parseFloat(post.max_accepted_payout) === 0)
                                     continue;
+
+                                // This posts sends all rewards to the dao or null.
+                                if (parseFloat(post.beneficiaries.length) !== 0) {
+
+                                    let null_benefs = post.beneficiaries.filter(el =>  el.account === "null")
+                                    let dao_benefs = post.beneficiaries.filter(el =>  el.account === "steem.dao")
+
+                                    let total_benefs = 0;
+
+                                    if (null_benefs.length === 1)
+                                        total_benefs += null_benefs[0].weight;
+                                    if (dao_benefs.length === 1)
+                                        total_benefs += dao_benefs[0].weight;
+
+                                    // 100% to the dao or null or a combination of both
+                                    if (total_benefs === 10000)
+                                        continue;
+                                }
                             }
                             weight = Math.ceil(affected_trails[i].ratio * weight);
 
