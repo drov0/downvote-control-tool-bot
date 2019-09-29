@@ -125,9 +125,7 @@ function get_downvote_power(account)
     if (currentMana > maxMana) {
         currentMana = maxMana;
     }
-    const currentManaPerc = currentMana * 100 / maxMana;
-
-    return currentManaPerc
+    return currentMana * 100 / maxMana
 }
 
 function get_vote_power(account)
@@ -142,9 +140,7 @@ function get_vote_power(account)
     if (currentMana > maxMana) {
         currentMana = maxMana;
     }
-    const currentManaPerc = currentMana * 100 / maxMana;
-
-    return currentManaPerc
+    return currentMana * 100 / maxMana
 }
 
 function get_voting_data(usernames) {
@@ -213,15 +209,8 @@ function vote_err_handled(username, wif, author, permlink, percentage)
 
 function has_already_beed_voted(voter, post) {
 
-        if (post.active_votes.filter(el => el.voter === voter).length !== 0)
-        {
-            return true
-        } else
-        {
-            return false
-        }
+        return post.active_votes.filter(el => el.voter === voter).length !== 0;
 }
-
 
 function calculate_weight(post, user_voting_data, voter, ratio, vote_type)
 {
@@ -291,7 +280,6 @@ function stream() {
                             permlink = operation[1].permlink,
                             weight = operation[1].weight;
 
-
                         let voting_data = await get_voting_data(affected_trails.map(el => el.username));
 
                         for (let i = 0; i < affected_trails.length; i++) {
@@ -304,16 +292,25 @@ function stream() {
                                 const post = await client.database.call("get_content", [author, permlink]);
 
                                 if (has_already_beed_voted(affected_trails[i].username, post) === true)
+                                {
+                                    console.log(`${author}/${permlink} has already been voted by ${affected_trails[i].username}`);
                                     continue;
+                                }
 
                                 // These checks only make sense if we are downvoting
                                 if (affected_trails[i].type === TRAIL_DOWNVOTE || affected_trails[i].type === COUNTER_UPVOTE) {
                                     if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout)
+                                    {
+                                        console.log(`vote by ${voter} on ${author}/${permlink} has 0 payout or is below ${affected_trails[i].username}'s threshold : ${user.min_payout}`);
                                         continue;
+                                    }
 
                                     // This posts accepts reward
                                     if (parseFloat(post.max_accepted_payout) === 0)
+                                    {
+                                        console.log(`vote by ${voter} on  ${author}/${permlink} doesn't accept rewards ${affected_trails[i].username} won't vote`);
                                         continue;
+                                    }
 
                                     // This posts sends all rewards to the dao or null.
                                     if (parseFloat(post.beneficiaries.length) !== 0) {
@@ -330,32 +327,45 @@ function stream() {
 
                                         // 100% to the dao or null or a combination of both
                                         if (total_benefs === 10000)
+                                        {
+                                            console.log(`vote by ${voter} on  ${author}/${permlink} gives 100% to steem.dao or null ${affected_trails[i].username} won't vote`);
                                             continue;
+                                        }
                                     }
                                 }
 
                                 if (affected_trails[i].type === COUNTER_UPVOTE) {
                                     // if weight is inferior to 0 it means it's a downvote and we don't trail those
                                     if (weight <= 0)
+                                    {
+                                        console.log(`vote by ${voter} on ${author}/${permlink} is a downvote, ${affected_trails[i].username} counters upvotes, no vote`);
                                         continue;
-                                    if (user.whitelist.indexOf(author) !== -1)
-                                        continue;
-
+                                    }
+                                    if (user.whitelist.indexOf(author) !== -1) {
+                                            console.log(`vote by ${voter} on ${author}/${permlink},${author} is on ${affected_trails[i].username}'s whitelist, no vote`);
+                                            continue;
+                                    }
                                     weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
                                 } else if (affected_trails[i].type === TRAIL_DOWNVOTE) {
 
-                                    if (user.whitelist.indexOf(author) !== -1)
+                                    if (user.whitelist.indexOf(author) !== -1) {
+                                        console.log(`vote by ${voter} on ${author}/${permlink},${author} is on ${affected_trails[i].username}'s whitelist, no vote`);
                                         continue;
-
+                                    }
                                     // if weight is superior to  0 it means it's an upvote and we don't trail those
                                     if (weight >= 0)
+                                    {
+                                        console.log(`vote by ${voter} on ${author}/${permlink} is a upvote, ${affected_trails[i].username} trails downvotes, no vote`);
                                         continue;
-
+                                    }
                                     weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
                                 } else if (affected_trails[i].type === COUNTER_DOWNVOTE) {
                                     // if weight is superior to  0 it means it's an upvote and we don't trail those
                                     if (weight >= 0)
+                                    {
+                                        console.log(`vote by ${voter} on ${author}/${permlink} is a upvote, ${affected_trails[i].username} counters downvotes, no vote`);
                                         continue;
+                                    }
 
                                     weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
                                 }
