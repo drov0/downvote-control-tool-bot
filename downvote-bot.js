@@ -191,10 +191,16 @@ function vote_err_handled(username, wif, author, permlink, percentage)
                 console.error("vote failed for " + username + " voting on " + author + "/" + permlink);
                 result = await vote(username, wif, author, permlink, percentage);
                 if (result === "") {
-                    console.log(`${username} downvoted @${author}/${permlink} with a ${percentage / 100}% vote`)
+                    if (percentage > 0)
+                        console.log(`${username} upvoted @${author}/${permlink} with a ${percentage/100}% vote`);
+                    else
+                        console.log(`${username} downvoted @${author}/${permlink} with a ${percentage/100}% vote`);
+
                     return resolve("");
                 }
             }
+
+            return resolve("failed")
         }
 
         if (percentage > 0)
@@ -204,7 +210,7 @@ function vote_err_handled(username, wif, author, permlink, percentage)
 
         return resolve("");
 
-            });
+    });
 }
 
 function has_already_beed_voted(voter, post) {
@@ -268,11 +274,10 @@ function stream() {
             if (operation[0] === "vote") {
                 let voter = operation[1].voter;
 
-                // Check if the voter is trailed or not
-
                 // Don't do anything when an user unvotes
                 if (operation[1].weight !== 0) {
 
+                    // Check if the voter is trailed or not
                     let affected_trails = trails.filter(el => el.trailed === voter);
 
                     if (affected_trails.length !== 0) {
@@ -301,7 +306,7 @@ function stream() {
                                 if (affected_trails[i].type === TRAIL_DOWNVOTE || affected_trails[i].type === COUNTER_UPVOTE) {
                                     if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout)
                                     {
-                                        console.log(`vote by ${voter} on ${author}/${permlink} has 0 payout or is below ${affected_trails[i].username}'s threshold : ${user.min_payout}`);
+                                        console.log(`vote by ${voter} on ${author}/${permlink} has 0 payout or is below ${affected_trails[i].username}'s min payout : ${user.min_payout}`);
                                         continue;
                                     }
 
@@ -370,7 +375,19 @@ function stream() {
                                     weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
                                 }
 
-                                vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, weight)
+                                let result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, weight)
+
+                                if (result === "")
+                                {
+                                    let reason = {
+                                        op : operation[1],
+                                        trail : affected_trails[i]
+                                    };
+
+                                    db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
+                                        [affected_trails[i].username, affected_trails[i].type, author, permlink, weight, JSON.stringify(reason)])
+                                }
+
                             }
                         }
                     }
