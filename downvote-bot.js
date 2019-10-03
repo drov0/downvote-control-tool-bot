@@ -23,55 +23,12 @@ async function get_trails()
         users[i].whitelist = whitelists.filter(el => el.username === users[i].username).map(el => el.trailed);
 }
 
-function get_voting_power(usernames) {
-
-    return new Promise(async resolve => {
-
-        let accounts = await client.database.getAccounts(usernames).catch(function (err) {
-            if (err) {
-                if (err.message === "HTTP 504: Gateway Time-out" || err.message === "HTTP 502: Bad Gateway") {
-                    console.log("Error 504/502")
-                } else
-                    console.error(err);
-                return resolve([]);
-            }
-        });
-
-        let voting_powers = [];
-
-        for (let i = 0; i < accounts.length; i++) {
-
-            let account = accounts[i];
-
-            const totalShares = parseFloat(account.vesting_shares) + parseFloat(account.received_vesting_shares) - parseFloat(account.delegated_vesting_shares) - parseFloat(account.vesting_withdraw_rate);
-
-            const elapsed = Math.floor(Date.now() / 1000) - account.downvote_manabar.last_update_time;
-            const maxMana = totalShares * 1000000 / 4;
-            // 432000 sec = 5 days
-            let currentMana = parseFloat(account.downvote_manabar.current_mana) + elapsed * maxMana / 432000;
-
-            if (currentMana > maxMana) {
-                currentMana = maxMana;
-            }
-
-            const currentManaPerc = currentMana * 100 / maxMana;
-
-            voting_powers.push({username : account.name, downvoting_power : currentManaPerc})
-
-        }
-        return resolve(voting_powers);
-    })
-}
-
-
 function wait(time)
 {
     return new Promise(resolve => {
         setTimeout(() => resolve('☕'), time*1000); // miliseconds to seconds
     });
 }
-
-
 
 function vote(username, wif, author, permlink, weight) {
 
@@ -97,7 +54,6 @@ function vote(username, wif, author, permlink, weight) {
 
         await wait(5);
         return resolve("");
-
     })
 }
 
@@ -106,11 +62,9 @@ function vote(username, wif, author, permlink, weight) {
 
 function get_vote_value_vests(account, voting_power) {
     let total_vests = parseFloat(account.vesting_shares) + parseFloat(account.received_vesting_shares) - parseFloat(account.delegated_vesting_shares);
-    let final_vest = total_vests * 1e6
-    let power = (voting_power * 10000 / 10000) / 50
-    let rshares = power * final_vest / 10000
-
-    return rshares;
+    let final_vest = total_vests * 1e6;
+    let power = (voting_power * 10000 / 10000) / 50;
+    return power * final_vest / 10000;
 }
 
 function get_downvote_power(account)
@@ -199,7 +153,6 @@ function vote_err_handled(username, wif, author, permlink, percentage)
                     return resolve("");
                 }
             }
-
             return resolve("failed")
         }
 
@@ -214,7 +167,6 @@ function vote_err_handled(username, wif, author, permlink, percentage)
 }
 
 function has_already_beed_voted(voter, post) {
-
         return post.active_votes.filter(el => el.voter === voter).length !== 0;
 }
 
@@ -292,7 +244,16 @@ function stream() {
                             let user = users.filter(el => el.username === affected_trails[i].username)[0];
                             let user_voting_data = voting_data.filter(el => el.username === affected_trails[i].username)[0];
 
-                            if (user.threshold < user_voting_data.downvoting_power) {
+                            if (user.dv_threshold <= user_voting_data.downvoting_power) {
+                                // if the downvoting power is lower than 1% we assume that it's going to use voting power
+                                if (user_voting_data.downvoting_power < 1)
+                                {
+                                    if (user.vp_threshold > user_voting_data.voting_power) {
+                                        console.log(`${author}/${permlink} won't be voted by  ${affected_trails[i].username} because it's downvoting power is too low and vp threshold is too high 
+                                        downvoting power : ${user_voting_data.downvoting_power} voting power : ${user_voting_data.voting_power} vp_threshold : ${user.vp_threshold}`);
+                                        continue
+                                    }
+                                }
 
                                 const post = await client.database.call("get_content", [author, permlink]);
 
@@ -372,6 +333,11 @@ function stream() {
                                         continue;
                                     }
 
+                                    if (user.vp_threshold > user_voting_data.voting_power) {
+                                        console.log(`downvote by ${voter} on ${author}/${permlink} won't be countered by ${affected_trails[i].username}, voting power is too low. Voting power : ${user_voting_data.voting_power} vp_threshold : ${user.vp_threshold}`);
+                                        continue
+                                    }
+
                                     weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
                                 }
 
@@ -401,13 +367,12 @@ function stream() {
     });
 }
 
-
 async function run()
 {
     console.log("Starting...");
-    await get_trails();
+    //await get_trails();
 
-    stream()
+    stream();
     // Update trail data every minute
     while (true)
     {
