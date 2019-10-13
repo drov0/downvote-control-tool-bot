@@ -8,6 +8,8 @@ const client = new dsteem.Client('https://api.steemit.com');
 
 let trails = [];
 let users = [];
+let hitlists = [];
+let hitlists_queue = [];
 
 const COUNTER_UPVOTE = -1;
 const TRAIL_DOWNVOTE = 1;
@@ -17,6 +19,7 @@ async function get_trails()
 {
     trails = await db("SELECT username, trailed, ratio, type FROM trail");
     let whitelists = await db("SELECT username, trailed FROM whitelist");
+    hitlists = await db("SELECT * FROM hitlist");
     users = await db("SELECT * from user_data");
 
     for (let i = 0; i < users.length; i++)
@@ -214,6 +217,84 @@ function calculate_weight(post, user_voting_data, voter, ratio, vote_type)
     return percent;
 }
 
+function handle_hitlists_queue(hitlists, vote)
+{
+    if (hitlists_queue.length !== 0)
+    {
+        let index = -1;
+        for (let i = 0; i < hitlists_queue.length; i++) {
+            if (vote.author === hitlists_queue[i].author && vote.permlink === hitlists_queue[i].permlink)
+            {
+                index = i;
+                break;
+            }
+        }
+        if (index !== -1) {
+            if (hitlists.filter(el => hitlists.username === vote.voter).length !== 0)
+            {
+                console.log(`Did not Refresh hitlist queue for ${vote.author}/${vote.permlink} as we caused the refresh`);
+                return
+            }
+            console.log(`Refreshed hitlist queue for ${vote.author}/${vote.permlink}`);
+            clearTimeout(hitlists_queue[index].timeout);
+
+            hitlists_queue[index].timeout = setTimeout(async function () {
+                hitlists_queue.splice(index, 1); // Remove queue
+                handle_hitlists(hitlists, vote)
+            }, 30000);
+        }
+    } else
+    {
+        console.log(`New hitlist queue for ${vote.author}/${vote.permlink}`);
+        hitlists_queue.push({
+            author : vote.author,
+            permlink : vote.permlink,
+            timeout : setTimeout(async function () {
+                hitlists_queue.splice(hitlists_queue.length, 1); // Remove queue
+                handle_hitlists(hitlists, vote)
+            }, 30000)
+        });
+
+    }
+
+}
+
+async function handle_hitlists(hitlists, vote)
+{
+    let author = vote.author,
+        permlink = vote.permlink
+
+    const post = await client.database.call("get_content", [author, permlink]);
+
+    for (let i = 0; i < hitlists.length; i++)
+    {
+        if (has_already_beed_voted(hitlists[i].username, post) === true)
+        {
+            console.log(`${author}/${permlink} has already been voted by ${hitlists[i].username}`);
+            continue
+        }
+
+        if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < hitlists[i].min_payout)
+        {
+            console.log(`${author}/${permlink} has 0 payout or is below ${hitlists[i].username}'s min hitlist payout : ${hitlists[i].min_payout}`);
+            continue;
+        }
+
+        let result = await vote_err_handled(hitlists[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, -hitlists[i].percent);
+
+        if (result === "")
+        {
+            let reason = {
+                op : vote,
+                hitlist : hitlists[i]
+            };
+
+            db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
+                [hitlists[i].username, 3, author, permlink,  -hitlists[i].percent, JSON.stringify(reason)])
+        }
+    }
+}
+
 function stream() {
     steem.api.setOptions({
         url: "https://api.steemit.com"
@@ -228,6 +309,12 @@ function stream() {
 
                 // Don't do anything when an user unvotes
                 if (operation[1].weight !== 0) {
+
+                    // Check if the vote is on an user that is on a hitlist
+                    let affected_hitlists = hitlists.filter(el => el.author === operation[1].author);
+                    if (affected_hitlists.length !== 0) {
+                        handle_hitlists_queue(affected_hitlists, operation[1])
+                    }
 
                     // Check if the voter is trailed or not
                     let affected_trails = trails.filter(el => el.trailed === voter);
