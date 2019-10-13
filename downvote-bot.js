@@ -266,6 +266,37 @@ async function handle_hitlists(hitlists, vote)
 
     const post = await client.database.call("get_content", [author, permlink]);
 
+    // This posts accepts reward
+    if (parseFloat(post.max_accepted_payout) === 0)
+    {
+        console.log(`${author}/${permlink} doesn't accept rewards`);
+        return;
+    }
+
+    // This posts sends all rewards to the dao or null.
+    if (parseFloat(post.beneficiaries.length) !== 0) {
+
+        let null_benefs = post.beneficiaries.filter(el => el.account === "null")
+        let dao_benefs = post.beneficiaries.filter(el => el.account === "steem.dao")
+
+        let total_benefs = 0;
+
+        if (null_benefs.length === 1)
+            total_benefs += null_benefs[0].weight;
+        if (dao_benefs.length === 1)
+            total_benefs += dao_benefs[0].weight;
+
+        // 100% to the dao or null or a combination of both
+        if (total_benefs === 10000)
+        {
+            console.log(`${author}/${permlink} gives 100% to steem.dao or null`);
+            return;
+        }
+    }
+
+
+    let voting_data = await get_voting_data(hitlists.map(el => el.username));
+
     for (let i = 0; i < hitlists.length; i++)
     {
         if (has_already_beed_voted(hitlists[i].username, post) === true)
@@ -280,17 +311,32 @@ async function handle_hitlists(hitlists, vote)
             continue;
         }
 
-        let result = await vote_err_handled(hitlists[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, -hitlists[i].percent);
+        let user = users.filter(el => el.username === hitlists[i].username)[0];
+        let user_voting_data = voting_data.filter(el => el.username === hitlists[i].username)[0];
 
-        if (result === "")
-        {
-            let reason = {
-                op : vote,
-                hitlist : hitlists[i]
-            };
+        if (user.dv_threshold <= user_voting_data.downvoting_power) {
+            // if the downvoting power is lower than 1% we assume that it's going to use voting power
+            if (user_voting_data.downvoting_power < 1)
+            {
+                if (user.vp_threshold > user_voting_data.voting_power) {
+                    console.log(`${author}/${permlink} won't be voted by  ${affected_trails[i].username} because it's downvoting power is too low and vp threshold is too high 
+                                        downvoting power : ${user_voting_data.downvoting_power} voting power : ${user_voting_data.voting_power} vp_threshold : ${user.vp_threshold}`);
+                    continue
+                }
+            }
 
-            db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
-                [hitlists[i].username, 3, author, permlink,  -hitlists[i].percent, JSON.stringify(reason)])
+            let result = await vote_err_handled(hitlists[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, -hitlists[i].percent*100);
+
+            if (result === "")
+            {
+                let reason = {
+                    op : vote,
+                    hitlist : hitlists[i]
+                };
+
+                db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
+                    [hitlists[i].username, 3, author, permlink,  -hitlists[i].percent, JSON.stringify(reason)])
+            }
         }
     }
 }
@@ -395,7 +441,7 @@ function stream() {
                                         continue;
                                     }
                                     if (user.whitelist.indexOf(author) !== -1) {
-                                            console.log(`vote by ${voter} on ${author}/${permlink},${author} is on ${affected_trails[i].username}'s whitelist, no vote`);
+                                        console.log(`vote by ${voter} on ${author}/${permlink},${author} is on ${affected_trails[i].username}'s whitelist, no vote`);
                                             continue;
                                     }
                                     weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
