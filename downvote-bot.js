@@ -334,8 +334,8 @@ async function handle_hitlists(hitlists, vote)
                     hitlist : hitlists[i]
                 };
 
-                db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
-                    [hitlists[i].username, 3, author, permlink,  -hitlists[i].percent, JSON.stringify(reason)])
+                db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, date, reason) VALUES(NULL, ?, ?, ?, ?, ?,? , ?)",
+                    [hitlists[i].username, 3, author, permlink,  -hitlists[i].percent, parseInt(new Date().getTime()/1000), JSON.stringify(reason)])
             }
         }
     }
@@ -483,8 +483,8 @@ function stream() {
                                         trail : affected_trails[i]
                                     };
 
-                                    db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
-                                        [affected_trails[i].username, affected_trails[i].type, author, permlink, weight, JSON.stringify(reason)])
+                                    db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage,date, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?, ?)",
+                                        [affected_trails[i].username, affected_trails[i].type, author, permlink, weight,parseInt(new Date().getTime()/1000),  JSON.stringify(reason)])
                                 }
 
                             }
