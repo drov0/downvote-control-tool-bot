@@ -26,6 +26,24 @@ async function get_trails()
         users[i].whitelist = whitelists.filter(el => el.username === users[i].username).map(el => el.trailed);
 }
 
+async function add_vote_dates()
+{
+    let votes = await db("SELECT * FROM executed_votes where date IS NULL");
+
+    for (let i = 0; i < votes.length; i++)
+    {
+        const post = await client.database.call("get_content", [votes[i].author, votes[i].permlink]);
+
+        db("UPDATE executed_votes SET date = ? WHERE id = ?", [new Date(post.created).getTime()/1000, votes[i].id])
+
+        console.log(`${i}/${votes.length}`)
+    }
+
+    console.log("done")
+
+}
+
+
 function wait(time)
 {
     return new Promise(resolve => {
@@ -504,14 +522,15 @@ async function run()
 {
     console.log("Starting...");
     //await get_trails();
-
-    stream();
+    await add_vote_dates()
+    console.log("finished")
+   /* stream();
     // Update trail data every minute
     while (true)
     {
         await get_trails();
         await wait(60)
-    }
+    }*/
 }
 
 
