@@ -373,7 +373,7 @@ function stream() {
                         let voting_data = await get_voting_data(affected_trails.map(el => el.username));
 
                         for (let i = 0; i < affected_trails.length; i++) {
-
+                            let final_vote_weight = 0;
                             let user = users.filter(el => el.username === affected_trails[i].username)[0];
                             let user_voting_data = voting_data.filter(el => el.username === affected_trails[i].username)[0];
 
@@ -444,7 +444,7 @@ function stream() {
                                         console.log(`vote by ${voter} on ${author}/${permlink},${author} is on ${affected_trails[i].username}'s whitelist, no vote`);
                                             continue;
                                     }
-                                    weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
+                                    final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
                                 } else if (affected_trails[i].type === TRAIL_DOWNVOTE) {
 
                                     if (user.whitelist.indexOf(author) !== -1) {
@@ -457,7 +457,7 @@ function stream() {
                                         console.log(`vote by ${voter} on ${author}/${permlink} is a upvote, ${affected_trails[i].username} trails downvotes, no vote`);
                                         continue;
                                     }
-                                    weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
+                                    final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
                                 } else if (affected_trails[i].type === COUNTER_DOWNVOTE) {
                                     // if weight is superior to  0 it means it's an upvote and we don't trail those
                                     if (weight >= 0)
@@ -471,10 +471,10 @@ function stream() {
                                         continue
                                     }
 
-                                    weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
+                                    final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
                                 }
 
-                                let result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, weight)
+                                let result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, final_vote_weight)
 
                                 if (result === "")
                                 {
@@ -484,7 +484,7 @@ function stream() {
                                     };
 
                                     db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage,date, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?, ?)",
-                                        [affected_trails[i].username, affected_trails[i].type, author, permlink, weight,parseInt(new Date().getTime()/1000),  JSON.stringify(reason)])
+                                        [affected_trails[i].username, affected_trails[i].type, author, permlink, final_vote_weight, parseInt(new Date().getTime()/1000),  JSON.stringify(reason)])
                                 }
 
                             }
