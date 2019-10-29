@@ -22,8 +22,10 @@ async function get_trails()
     hitlists = await db("SELECT * FROM hitlist");
     users = await db("SELECT * from user_data");
 
-    for (let i = 0; i < users.length; i++)
+    for (let i = 0; i < users.length; i++) {
         users[i].whitelist = whitelists.filter(el => el.username === users[i].username).map(el => el.trailed);
+        users[i].revote = users[i].revote === 1;
+    }
 }
 
 function wait(time)
@@ -170,7 +172,7 @@ function vote_err_handled(username, wif, author, permlink, percentage)
 }
 
 function has_already_beed_voted(voter, post) {
-        return post.active_votes.filter(el => el.voter === voter).length !== 0;
+        return post.active_votes.filter(el => el.voter === voter);
 }
 
 function calculate_weight(post, user_voting_data, voter, ratio, vote_type)
@@ -299,7 +301,7 @@ async function handle_hitlists(hitlists, vote)
 
     for (let i = 0; i < hitlists.length; i++)
     {
-        if (has_already_beed_voted(hitlists[i].username, post) === true)
+        if (has_already_beed_voted(hitlists[i].username, post).length !== 0)
         {
             console.log(`${author}/${permlink} has already been voted by ${hitlists[i].username}`);
             continue
@@ -379,8 +381,7 @@ function stream() {
 
                             if (user.dv_threshold <= user_voting_data.downvoting_power) {
                                 // if the downvoting power is lower than 1% we assume that it's going to use voting power
-                                if (user_voting_data.downvoting_power < 1)
-                                {
+                                if (user_voting_data.downvoting_power < 1) {
                                     if (user.vp_threshold > user_voting_data.voting_power) {
                                         console.log(`${author}/${permlink} won't be voted by  ${affected_trails[i].username} because it's downvoting power is too low and vp threshold is too high 
                                         downvoting power : ${user_voting_data.downvoting_power} voting power : ${user_voting_data.voting_power} vp_threshold : ${user.vp_threshold}`);
@@ -389,24 +390,21 @@ function stream() {
                                 }
 
                                 const post = await client.database.call("get_content", [author, permlink]);
-
-                                if (has_already_beed_voted(affected_trails[i].username, post) === true)
-                                {
+                                let past_vote = has_already_beed_voted(affected_trails[i].username, post);
+                                if (past_vote.length !== 0 && user.revote === false) {
                                     console.log(`${author}/${permlink} has already been voted by ${affected_trails[i].username}`);
                                     continue;
                                 }
 
                                 // These checks only make sense if we are downvoting
                                 if (affected_trails[i].type === TRAIL_DOWNVOTE || affected_trails[i].type === COUNTER_UPVOTE) {
-                                    if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout)
-                                    {
+                                    if (parseFloat(post.pending_payout_value) === 0 || parseFloat(post.pending_payout_value) < user.min_payout) {
                                         console.log(`vote by ${voter} on ${author}/${permlink} has 0 payout or is below ${affected_trails[i].username}'s min payout : ${user.min_payout}`);
                                         continue;
                                     }
 
                                     // This posts accepts reward
-                                    if (parseFloat(post.max_accepted_payout) === 0)
-                                    {
+                                    if (parseFloat(post.max_accepted_payout) === 0) {
                                         console.log(`vote by ${voter} on  ${author}/${permlink} doesn't accept rewards ${affected_trails[i].username} won't vote`);
                                         continue;
                                     }
@@ -425,8 +423,7 @@ function stream() {
                                             total_benefs += dao_benefs[0].weight;
 
                                         // 100% to the dao or null or a combination of both
-                                        if (total_benefs === 10000)
-                                        {
+                                        if (total_benefs === 10000) {
                                             console.log(`vote by ${voter} on  ${author}/${permlink} gives 100% to steem.dao or null ${affected_trails[i].username} won't vote`);
                                             continue;
                                         }
@@ -435,14 +432,13 @@ function stream() {
 
                                 if (affected_trails[i].type === COUNTER_UPVOTE) {
                                     // if weight is inferior to 0 it means it's a downvote and we don't trail those
-                                    if (weight <= 0)
-                                    {
+                                    if (weight <= 0) {
                                         console.log(`vote by ${voter} on ${author}/${permlink} is a downvote, ${affected_trails[i].username} counters upvotes, no vote`);
                                         continue;
                                     }
                                     if (user.whitelist.indexOf(author) !== -1) {
                                         console.log(`vote by ${voter} on ${author}/${permlink},${author} is on ${affected_trails[i].username}'s whitelist, no vote`);
-                                            continue;
+                                        continue;
                                     }
                                     final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
                                 } else if (affected_trails[i].type === TRAIL_DOWNVOTE) {
@@ -452,16 +448,14 @@ function stream() {
                                         continue;
                                     }
                                     // if weight is superior to  0 it means it's an upvote and we don't trail those
-                                    if (weight >= 0)
-                                    {
+                                    if (weight >= 0) {
                                         console.log(`vote by ${voter} on ${author}/${permlink} is a upvote, ${affected_trails[i].username} trails downvotes, no vote`);
                                         continue;
                                     }
                                     final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "downvote");
                                 } else if (affected_trails[i].type === COUNTER_DOWNVOTE) {
                                     // if weight is superior to  0 it means it's an upvote and we don't trail those
-                                    if (weight >= 0)
-                                    {
+                                    if (weight >= 0) {
                                         console.log(`vote by ${voter} on ${author}/${permlink} is a upvote, ${affected_trails[i].username} counters downvotes, no vote`);
                                         continue;
                                     }
@@ -473,31 +467,45 @@ function stream() {
 
                                     final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
                                 }
-
-                                let result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, final_vote_weight)
-
-                                if (result === "")
-                                {
-                                    let reason = {
-                                        op : operation[1],
-                                        trail : affected_trails[i]
-                                    };
-
-                                    db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage,date, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?, ?)",
-                                        [affected_trails[i].username, affected_trails[i].type, author, permlink, final_vote_weight, parseInt(new Date().getTime()/1000),  JSON.stringify(reason)])
+                                let result;
+                                let vote = true;
+                                if (past_vote.length !== 0) {
+                                    past_vote = past_vote[0];
+                                    vote = false;
+                                    // upvote case
+                                    if (past_vote.percent > 0 && past_vote.percent < final_vote_weight)
+                                        vote = true;
+                                    // downvote case
+                                    if (past_vote.percent < 0 && final_vote_weight < past_vote.percent)
+                                        vote = true;
                                 }
 
+                                if (vote === true) {
+                                    result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, final_vote_weight);
+                                    if (result === "") {
+                                        let reason = {
+                                            op: operation[1],
+                                            trail: affected_trails[i]
+                                        };
+
+                                        db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage,date, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?, ?)",
+                                            [affected_trails[i].username, affected_trails[i].type, author, permlink, final_vote_weight, parseInt(new Date().getTime() / 1000), JSON.stringify(reason)])
+                                    }
+                                } else {
+                                    console.log(`Revote by ${affected_trails[i].username} not executed on @${author}/${permlink} because the current vote is higher`)
+                                }
                             }
+
                         }
                     }
                 }
             }
-        });
-
-    }).catch(err => {
-        console.log(err);
-        stream();
     });
+
+}).catch(err => {
+    console.log(err);
+    stream();
+});
 }
 
 async function run()
