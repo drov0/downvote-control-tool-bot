@@ -511,7 +511,7 @@ function stream() {
 async function run()
 {
     console.log("Starting...");
-    //await get_trails();
+    await get_trails();
 
     stream();
     // Update trail data every minute
