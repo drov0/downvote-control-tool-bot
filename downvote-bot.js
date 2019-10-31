@@ -467,6 +467,11 @@ function stream() {
                                         continue;
                                     }
 
+                                    if (parseFloat(post.pending_payout_value) > user.min_payout) {
+                                        console.log(`vote by ${voter} on ${author}/${permlink} is above ${affected_trails[i].username}'s max payout : ${user.min_payout} won't counter vote`);
+                                        continue;
+                                    }
+
                                     if (user.vp_threshold > user_voting_data.voting_power) {
                                         console.log(`downvote by ${voter} on ${author}/${permlink} won't be countered by ${affected_trails[i].username}, voting power is too low. Voting power : ${user_voting_data.voting_power} vp_threshold : ${user.vp_threshold}`);
                                         continue
