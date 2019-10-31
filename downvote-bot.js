@@ -19,11 +19,13 @@ async function get_trails()
 {
     trails = await db("SELECT username, trailed, ratio, type FROM trail");
     let whitelists = await db("SELECT username, trailed FROM whitelist");
+    let counter_dv_blacklist = await db("SELECT username, trailed FROM counter_dv_blacklist");
     hitlists = await db("SELECT * FROM hitlist");
     users = await db("SELECT * from user_data");
 
     for (let i = 0; i < users.length; i++) {
         users[i].whitelist = whitelists.filter(el => el.username === users[i].username).map(el => el.trailed);
+        users[i].counter_dv_blacklist = counter_dv_blacklist.filter(el => el.username === users[i].username).map(el => el.trailed);
         users[i].revote = users[i].revote === 1;
     }
 }
@@ -460,8 +462,8 @@ function stream() {
                                         continue;
                                     }
 
-                                    if (parseFloat(post.pending_payout_value) > user.min_payout) {
-                                        console.log(`vote by ${voter} on ${author}/${permlink} is above ${affected_trails[i].username}'s max payout : ${user.min_payout} won't counter vote`);
+                                    if (user.counter_dv_blacklist.indexOf(author) !== -1) {
+                                        console.log(`downvote by ${voter} on ${author}/${permlink} won't be countered by ${affected_trails[i].username} because ${author} is on its blacklist`);
                                         continue;
                                     }
 
