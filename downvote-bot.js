@@ -233,6 +233,10 @@ function handle_hitlists_queue(hitlists, vote)
                 break;
             }
         }
+
+        if (index === -1)
+            console.log(`Did not find hitlist queue for ${vote.author}/${vote.permlink}`);
+
         if (index !== -1) {
             if (hitlists.filter(el => hitlists.username === vote.voter).length !== 0)
             {
@@ -246,21 +250,20 @@ function handle_hitlists_queue(hitlists, vote)
                 hitlists_queue.splice(index, 1); // Remove queue
                 handle_hitlists(hitlists, vote)
             }, 30000);
-        }
-    } else
-    {
-        console.log(`New hitlist queue for ${vote.author}/${vote.permlink}`);
-        hitlists_queue.push({
-            author : vote.author,
-            permlink : vote.permlink,
-            timeout : setTimeout(async function () {
-                hitlists_queue.splice(hitlists_queue.length, 1); // Remove queue
-                handle_hitlists(hitlists, vote)
-            }, 30000)
-        });
 
+            return;
+        }
     }
 
+    console.log(`New hitlist queue for ${vote.author}/${vote.permlink}`);
+    hitlists_queue.push({
+        author : vote.author,
+        permlink : vote.permlink,
+        timeout : setTimeout(async function () {
+            hitlists_queue.splice(hitlists_queue.length, 1); // Remove queue
+            handle_hitlists(hitlists, vote)
+        }, 30000)
+    });
 }
 
 async function handle_hitlists(hitlists, vote)
