@@ -343,6 +343,9 @@ async function handle_hitlists(hitlists, vote)
 
                 db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage, date, reason) VALUES(NULL, ?, ?, ?, ?, ?,? , ?)",
                     [hitlists[i].username, 3, author, permlink,  -hitlists[i].percent, parseInt(new Date().getTime()/1000), JSON.stringify(reason)])
+
+                console.log("hitlist insert")
+
             }
         }
     }
@@ -482,7 +485,6 @@ function stream() {
 
                                     final_vote_weight = calculate_weight(post, user_voting_data, voter, affected_trails[i].ratio, "upvote");
                                 }
-                                let result;
                                 let vote = true;
                                 if (past_vote.length !== 0) {
                                     past_vote = past_vote[0];
@@ -496,7 +498,7 @@ function stream() {
                                 }
 
                                 if (vote === true) {
-                                    result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, final_vote_weight);
+                                    let result = await vote_err_handled(affected_trails[i].username, process.env.DOWNVOTE_TOOL_WIF, author, permlink, final_vote_weight);
                                     if (result === "") {
                                         let reason = {
                                             op: operation[1],
@@ -505,6 +507,8 @@ function stream() {
 
                                         db("INSERT INTO executed_votes(id, username, type, author, permlink, percentage,date, reason) VALUES(NULL, ?, ?, ?, ?, ?, ?, ?)",
                                             [affected_trails[i].username, affected_trails[i].type, author, permlink, final_vote_weight, parseInt(new Date().getTime() / 1000), JSON.stringify(reason)])
+
+                                        console.log("inserted")
                                     }
                                 } else {
                                     console.log(`Revote by ${affected_trails[i].username} not executed on @${author}/${permlink} because the current vote is higher`)
