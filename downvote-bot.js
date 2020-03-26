@@ -3,8 +3,9 @@ const steem = require("steem");
 const config = require("./config.js");
 
 const db = config.db;
-const dsteem = require('dsteem');
-const client = new dsteem.Client('https://api.steemit.com');
+
+var dhive = require('@hivechain/dhive');
+const client = new dhive.Client('https://anyx.io');
 
 let trails = [];
 let users = [];
@@ -51,7 +52,7 @@ function vote(username, wif, author, permlink, weight) {
         }, private_key).catch(async function(error) {
             if (error.message.indexOf("Can only vote once every 3 seconds") !== -1)
                 console.error("Can only vote once every 3 seconds");
-            else if (error.message === "HTTP 504: Gateway Time-out" || error.message === "HTTP 502: Bad Gateway" || error.message.indexOf("request to https://api.steemit.com failed, reason: connect ETIMEDOUT") !== -1 || error.message.indexOf("transaction tapos exception") !== -1)
+            else if (error.message === "HTTP 504: Gateway Time-out" || error.message === "HTTP 502: Bad Gateway" || error.message.indexOf("request to https://anyx.io failed, reason: connect ETIMEDOUT") !== -1 || error.message.indexOf("transaction tapos exception") !== -1)
                 console.error("Error 504/502");
             else
                 console.error(error);
@@ -353,7 +354,7 @@ async function handle_hitlists(hitlists, vote)
 
 function stream() {
     steem.api.setOptions({
-        url: "https://api.steemit.com"
+        url: "https://anyx.io"
     });
     return new Promise((resolve, reject) => {
 
