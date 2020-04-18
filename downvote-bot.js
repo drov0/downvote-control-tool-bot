@@ -42,7 +42,7 @@ function vote(username, wif, author, permlink, weight) {
 
     return new Promise(async resolve => {
 
-        const private_key = dsteem.PrivateKey.fromString(wif);
+        const private_key = dhive.PrivateKey.fromString(wif);
 
         await client.broadcast.vote({
             voter: username,
